@@ -15,7 +15,7 @@ Route::group([
 Route::group(['middleware' => ['auth:sanctum', 'role:Admin|Sender|Rider']], function () {
     // Parcel routes
     Route::get('parcel/bookings', [BookingApiController::class, 'booking']);
-    Route::post('parcel/create', [BookingApiController::class, 'booking']);
+    Route::post('parcel/create', [BookingApiController::class, 'create']);
     Route::post('booking/parcel', [BookingApiController::class, 'bookParcel']); // parcel_id as body
     Route::post('Booking/parcel/status', [BookingApiController::class, 'updateStatus']);
     Route::post('track/{tracking_id}', [BookingApiController::class, 'bookingStatus']);
