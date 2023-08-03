@@ -179,8 +179,8 @@ return [
         App\Providers\RouteServiceProvider::class,
         Yajra\DataTables\DataTablesServiceProvider::class,
         Spatie\Permission\PermissionServiceProvider::class,
-        Barryvdh\DomPDF\ServiceProvider::class,
 
+        App\Repositories\Booking\BookingServiceProvider::class,
     ],
 
     /*
