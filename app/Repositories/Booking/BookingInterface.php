@@ -9,8 +9,11 @@ interface BookingInterface {
     public function track($id);
 
     // Book parcel
-    public function booking();
+    public function booking($data);
+
+    // Pick parcel
+    public function pick($id, $riderID);
 
     // Update the status of the parcel
-    public function updateStatus($id);
+    public function updateStatus($id, $userID);
 }
