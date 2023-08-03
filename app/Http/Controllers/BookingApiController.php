@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ParcelBooking;
+use App\Repositories\Booking\BookingInterface;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,59 +11,44 @@ use Illuminate\Validation\ValidationException;
 
 class BookingApiController extends Controller
 {
-    function __construct()
+    private $bookingI;
+    
+    function __construct(BookingInterface $bookingI)
     {
-        
+        $this->bookingI = $bookingI;
     }
     
+    function create(Request $request) {
+        try{
+            $valid =  $request->validate([
+                'pickup' => 'required|max:255',
+                'dropoff' => 'required|max:255',
+            ]);
+            $parcel = array(
+                "pickup" => $valid["pickup"],
+                "dropoff" => $valid["dropoff"],
+                "user_id" => auth()->user()->id,
+            );
+            $data = $this->bookingI->booking($parcel);
+            return response()->json($data);
+
+        } catch(ValidationException $ex) {
+            return response()->json([
+                "success" => false,
+                "error" => $ex->getCode(),
+                "message" => $ex->getMessage()
+            ]);
+        } catch(Exception $ex) {
+            return response()->json([
+                "success" => false,
+                "error" => $ex->getCode(),
+                "message" => $ex->getMessage()
+            ]);
+        }
+    }
+
     function booking(Request $request) {
         try {
-            if($request->isMethod('post')) {
-                try{
-                    $valid =  $request->validate([
-                        'pickup' => 'required|max:255',
-                        'dropoff' => 'required|max:255',
-                    ]);
-            
-                    if ($valid) {
-                        $booking = new ParcelBooking();
-                        $booking->pickup = $request->input('pickup');
-                        $booking->dropoff = $request->input('dropoff');
-                        $booking->created_by = auth()->user()->id;
-                        
-                        if ($booking->save()) {
-                            $data["message"] = "Your Parcel is Booked.";
-                            $data["data"] = array(
-                                "tracking_id" => $booking->id,
-                                "pickup" => $booking->pickup,
-                                "dropoff" => $booking->dropoff,
-                            );
-                        } else {
-                            $data["success"] = false;
-                            $data["message"] = "Booking Not Added Successfully.";
-                        }
-                    } else {
-                        $data["success"] = false;
-                        $data["message"] = "Validation failed.";
-                    }
-    
-                    return response()->json($data);
-    
-                } catch(ValidationException $ex) {
-                    return response()->json([
-                        "success" => false,
-                        "error" => $ex->getCode(),
-                        "message" => $ex->getMessage()
-                    ]);
-                } catch(Exception $ex) {
-                    return response()->json([
-                        "success" => false,
-                        "error" => $ex->getCode(),
-                        "message" => $ex->getMessage()
-                    ]);
-                }
-            } 
-            
             $bookings = ParcelBooking::select('id','pickup','dropoff')
                         ->whereNull("rider_id")
                         ->where('id', auth()->user()->id);
@@ -88,26 +74,14 @@ class BookingApiController extends Controller
         
     }
 
-    function bookingStatus(Request $request, $tracking_id) {
+    function bookingStatus($tracking_id) {
         try {
-            $booking = ParcelBooking::select('id','pickup','dropoff','rider_id', 'created_by', 'status')
-                        ->where('id', $tracking_id)
-                        ->with('rider:id,first_name');
+            $booking = $this->bookingI->track($tracking_id);
 
-            if(!$booking->first()->rider()->exists()) {
-                return response()->json([
-                    "message" => "No Rider picked the parcel yet."
-                ]);
-            } else if($booking->count() > 0) {
-                return response()->json([
-                    "data" => $booking->first()
-                ]);
-            } else {
-                return response()->json([
-                    "message" => "No Booking on this tracking ID."
-                ]);
-            }
-
+            return response()->json([
+                "data" => $booking
+            ]);
+            
         } catch (Exception $ex) {
             return response()->json([
                 "success" => false,
@@ -123,24 +97,9 @@ class BookingApiController extends Controller
             $valid =  $request->validate([
                 'parcel_id' => 'required|max:255',
             ]);
-    
-            if ($valid) {
-                $bookParcel = ParcelBooking::where('id', $request->parcel_id)->whereNull('rider_id');
+            
+            $data["message"] = $this->bookingI->pick($valid["parcel_id"], auth()->user()->id);
                 
-                if ($bookParcel->first() === null) {
-                    $data["message"] = "Parcel is already picked by another rider.";
-                } else {
-                    $bookParcel->update([
-                        'rider_id' => auth()->user()->id,
-                        'status' => 2 // Picked by Rider
-                    ]);
-                    $data["message"] = "Parcel Picked, make sure update the status when delivered.";
-                }
-            } else {
-                $data["success"] = false;
-                $data["message"] = "Parcel ID is required.";
-            }
-
             return response()->json($data);
 
         } catch(ValidationException $ex) {
@@ -164,23 +123,8 @@ class BookingApiController extends Controller
             $valid =  $request->validate([
                 'parcel_id' => 'required|max:255',
             ]);
-    
-            if ($valid) {
-                $bookParcel = ParcelBooking::where('id', $request->parcel_id)->where('rider_id', auth()->user()->id);
-                
-                if ($bookParcel->first() === null) {
-                    $data["message"] = "You haven't picked parcel with this parcel id.";
-                } else {
-                    $bookParcel->update([
-                        'rider_id' => auth()->user()->id,
-                        'status' => 3 // Delivered
-                    ]);
-                    $data["message"] = "Parcel delivered to the destination.";
-                }
-            } else {
-                $data["success"] = false;
-                $data["message"] = "Parcel ID is required.";
-            }
+            
+            $data["message"] = $this->bookingI->updateStatus($valid['id'], auth()->user()->id);
 
             return response()->json($data);
 
